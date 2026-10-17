@@ -1,0 +1,16 @@
+{
+  "input": "/media/episode.mp4",
+  "clip_seconds": 59,
+  "channels": [{
+    "integration_id": "REPLACE_WITH_POSTIZ_INTEGRATION_ID",
+    "start_date": "2026-10-20",
+    "times": ["12:00", "19:00"],
+    "timezone": "Asia/Kolkata",
+    "title": "{video_name} — Part {part}",
+    "description": "Your static description",
+    "hashtags": ["#Shorts"],
+    "tags": [],
+    "visibility": "private",
+    "made_for_kids": "no"
+  }]
+}
