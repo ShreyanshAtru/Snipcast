@@ -1,10 +1,41 @@
-import fcntl, json, time
+import json, os, sys, time
 from pathlib import Path
 from celery import Celery
 from . import db, settings, media
 from .postiz import Postiz, PostizError, payload, receipt_id
 from .service import export_manifest, parse
 import datetime as dt
+
+if sys.platform == 'win32':
+    import msvcrt
+    def _lock_file(f):
+        try:
+            msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+            return True
+        except (OSError, IOError):
+            return False
+
+    def _unlock_file(f):
+        try:
+            f.seek(0)
+            msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+        except (OSError, IOError):
+            pass
+else:
+    import fcntl
+    def _lock_file(f):
+        try:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return True
+        except (BlockingIOError, OSError):
+            return False
+
+    def _unlock_file(f):
+        try:
+            fcntl.flock(f, fcntl.LOCK_UN)
+        except (OSError, IOError):
+            pass
+
 celery=Celery('clipdesk',broker=settings.REDIS_URL)
 celery.conf.update(task_serializer='json',accept_content=['json'],task_acks_late=True,
     task_reject_on_worker_lost=True,worker_prefetch_multiplier=1,broker_connection_retry_on_startup=True,
@@ -13,9 +44,13 @@ celery.conf.update(task_serializer='json',accept_content=['json'],task_acks_late
 
 def has_lock(jid):
     db.job(jid)
-    with (settings.DATA/(jid+'.lock')).open('a') as f:
-        try: fcntl.flock(f,fcntl.LOCK_EX|fcntl.LOCK_NB); return False
-        except BlockingIOError: return True
+    lock_file = settings.DATA / (jid + '.lock')
+    with lock_file.open('a+') as f:
+        f.seek(0)
+        if _lock_file(f):
+            _unlock_file(f)
+            return False
+        return True
 
 def checkpoint(jid):
     r=db.job(jid)
@@ -38,12 +73,14 @@ def dispatch():
 
 @celery.task(name='app.tasks.run_job')
 def run_job(jid):
-    with (settings.DATA/(jid+'.lock')).open('a') as lock:
-        try: fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
-        except BlockingIOError: return
-        job=db.job(jid)
-        if job['state'] not in ('queued','running'): return
+    lock_file = settings.DATA / (jid + '.lock')
+    with lock_file.open('a+') as lock:
+        lock.seek(0)
+        if not _lock_file(lock):
+            return
         try:
+            job=db.job(jid)
+            if job['state'] not in ('queued','running'): return
             if job['mode']!=settings.MODE: raise ValueError('Batch mode differs from server mode; never replay demo batches live')
             config=json.loads(job['config']); source=media.local_path(config['source'])
             if [source.stat().st_size,source.stat().st_mtime_ns]!=config['source_stat']: raise ValueError('Source file changed since planning')
@@ -104,7 +141,9 @@ def run_job(jid):
             db.event(jid,'Stopped local work; already scheduled posts remain in Postiz.')
         except Exception as e:
             db.update(jid,state='failed',error=str(e),stage='Needs attention'); db.event(jid,str(e))
-        finally: export_manifest(jid)
+        finally:
+            export_manifest(jid)
+            _unlock_file(lock)
 
 def reconcile(jid):
     job=db.details(jid)
