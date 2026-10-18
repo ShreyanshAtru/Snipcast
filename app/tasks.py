@@ -59,6 +59,7 @@ def run_job(jid):
             for i,clip in enumerate(data['clips']):
                 checkpoint(jid); path=media.local_path(clip['path'],False)
                 if clip['state']=='ready' and path.exists() and media.checksum(path)==clip['checksum']: continue
+                path.parent.mkdir(parents=True, exist_ok=True)
                 digest=media.encode(source,path,clip['start'],clip['duration'],config['framing'],lambda:checkpoint(jid),lambda p:db.update(jid,progress=(i+p)/total*.7,stage=f'Clipping {i+1} of {total}'))
                 with db.connect() as c: c.execute("UPDATE clips SET state='ready',checksum=? WHERE id=?",(digest,clip['id']))
                 db.event(jid,f'Clip {clip["part"]} ready'); export_manifest(jid)
