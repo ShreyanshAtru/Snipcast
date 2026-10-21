@@ -7,8 +7,18 @@ $venvPy = Join-Path (Get-Location) ".venv\Scripts\python.exe"
 $venvCelery = Join-Path (Get-Location) ".venv\Scripts\celery.exe"
 $venvUvicorn = Join-Path (Get-Location) ".venv\Scripts\uvicorn.exe"
 
-if (-not (Test-Path $venvPy) -or -not (Test-Path ".env") -or -not (Test-Path "web\dist")) {
-    Write-Error "Please run .\scripts\setup.ps1 first."
+$missing = @()
+if (-not (Test-Path $venvPy)) { $missing += ".venv (Virtual environment not found at $venvPy)" }
+if (-not (Test-Path ".env")) { $missing += ".env (Environment file missing)" }
+if (-not (Test-Path "web\dist")) { $missing += "web\dist (Frontend build files missing)" }
+
+if ($missing.Count -gt 0) {
+    Write-Host "Missing setup prerequisites:" -ForegroundColor Red
+    foreach ($m in $missing) {
+        Write-Host "  - $m" -ForegroundColor Yellow
+    }
+    Write-Host ""
+    Write-Error "Please run .\scripts\setup.ps1 first to install dependencies and configure the environment."
     exit 1
 }
 

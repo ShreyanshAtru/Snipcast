@@ -1,0 +1,205 @@
+{
+  "id": "afaf389cf50a460d89e613f364b40839",
+  "fingerprint": "03efa51a3e2f047639441985aaae29de2c256a1b046ed13535402a0eb8c1fcfc",
+  "config": {
+    "source": "/Users/shreyanshjain/Downloads/Aadat-Atif-SnapYT.App.mp4",
+    "destination": "/Users/shreyanshjain/shreyansh/video-pipeline",
+    "folder": "Addat Zendria",
+    "clip_seconds": 59,
+    "framing": "crop",
+    "start_date": "2026-10-21",
+    "timezone": "Asia/Kolkata",
+    "channels": [
+      {
+        "id": "cmvccd8w80001nn85nmji1d00",
+        "name": "Shreyansh"
+      }
+    ],
+    "clips_per_day": 5,
+    "window_start": "18:10",
+    "window_end": "20:00",
+    "title": "{video_name} \u2014 Part {part}",
+    "description": "\ud83d\udda4 Some habits, some feelings, and some memories never fade\u2026 \ud83e\udd40\u2728\n\nAnime edits hit different when the music speaks what words cannot. \ud83c\udfa7\ud83d\udc94\n\n\ud83c\udfb5 Song: Adat\n\ud83c\udfa4 Artist: Zendria\n\u2702\ufe0f Edit: Shreyansh\n\nAll rights to the original music and anime footage belong to their respective copyright holders. Music and anime credits are provided for identification purposes.\n\n#Shorts #songs #zendria #vocal #vibe #emotinal",
+    "hashtags": "#Shorts #Shorts #songs #zendria #vocal #vibe #emotinal #Adat #Zendria #AnimeEdit #AnimeShorts #AMV #Shorts",
+    "visibility": "public",
+    "made_for_kids": "yes",
+    "schedule": true,
+    "source_stat": [
+      4707603,
+      1792585346993454434
+    ],
+    "duration": 189.40517,
+    "output": "/Users/shreyanshjain/shreyansh/video-pipeline/Addat Zendria"
+  },
+  "output": "/Users/shreyanshjain/shreyansh/video-pipeline/Addat Zendria",
+  "state": "completed",
+  "requested": "",
+  "progress": 1.0,
+  "error": "",
+  "created": 1792585671.665639,
+  "updated": 1792585996.854524,
+  "mode": "live",
+  "stage": "Scheduled in Postiz",
+  "clips": [
+    {
+      "id": "6398d461cb3444058c37865b5fa0e925",
+      "job_id": "afaf389cf50a460d89e613f364b40839",
+      "part": 1,
+      "start": 0.0,
+      "duration": 59.0,
+      "path": "/Users/shreyanshjain/shreyansh/video-pipeline/Addat Zendria/day_001/clip_0001.mp4",
+      "state": "ready",
+      "checksum": "fce7037cabe6d81fbf3f5558d2b152afde1c13ce52b8944795b015bd2e92cbf6",
+      "media": "{\"id\": \"32559c9d-1032-4ee0-94f3-1fd077c89ea6\", \"path\": \"https://cwls8hd0-4007.inc1.devtunnels.ms/uploads/2026/10/21/afe854b15c1b921bb108a0510cc10110383.mp4\"}"
+    },
+    {
+      "id": "c131362f0f6043d79a219f62a4445ab6",
+      "job_id": "afaf389cf50a460d89e613f364b40839",
+      "part": 2,
+      "start": 59.0,
+      "duration": 59.0,
+      "path": "/Users/shreyanshjain/shreyansh/video-pipeline/Addat Zendria/day_001/clip_0002.mp4",
+      "state": "ready",
+      "checksum": "a959184712b9d99847a8c7bc06e9df613aaea6b056bc6726a7ab35d8d78539fb",
+      "media": "{\"id\": \"df8ee86d-0e3d-40d1-83a0-c21b2049e46f\", \"path\": \"https://cwls8hd0-4007.inc1.devtunnels.ms/uploads/2026/10/21/4279a885b1ca85c26ed1028fdce943c10b.mp4\"}"
+    },
+    {
+      "id": "1ec2f3c67ab641c198dd8cdb8ce58dd0",
+      "job_id": "afaf389cf50a460d89e613f364b40839",
+      "part": 3,
+      "start": 118.0,
+      "duration": 59.0,
+      "path": "/Users/shreyanshjain/shreyansh/video-pipeline/Addat Zendria/day_001/clip_0003.mp4",
+      "state": "ready",
+      "checksum": "dd893c416ebff1f4b72f6b17d19ef683c97f864e80c472f9237ad22bdffeb98b",
+      "media": "{\"id\": \"95bcd021-567a-4df0-b651-5f10ceb7c2f4\", \"path\": \"https://cwls8hd0-4007.inc1.devtunnels.ms/uploads/2026/10/21/10bc6b3b35b8d41a16ee15210e98f5ed2b.mp4\"}"
+    },
+    {
+      "id": "83a16ab00dcc4adc9630873782fcc1f5",
+      "job_id": "afaf389cf50a460d89e613f364b40839",
+      "part": 4,
+      "start": 177.0,
+      "duration": 12.405169999999998,
+      "path": "/Users/shreyanshjain/shreyansh/video-pipeline/Addat Zendria/day_001/clip_0004.mp4",
+      "state": "ready",
+      "checksum": "ac0eac4e8ee0d7f1da7a79443ac33eec3a9b7888b2800a5a304a47507a8d3291",
+      "media": "{\"id\": \"ec2db457-f4d8-4838-a9b0-d07ee91204b0\", \"path\": \"https://cwls8hd0-4007.inc1.devtunnels.ms/uploads/2026/10/21/525a76100bed441aa6b1604dde46878710.mp4\"}"
+    }
+  ],
+  "publications": [
+    {
+      "id": "6f9e536064744c738fbae3dcdf850f0f",
+      "job_id": "afaf389cf50a460d89e613f364b40839",
+      "clip_id": "6398d461cb3444058c37865b5fa0e925",
+      "channel": "cmvccd8w80001nn85nmji1d00",
+      "scheduled": "2026-10-21T12:40:00Z",
+      "title": "Aadat-Atif-SnapYT.App \u2014 Part 1",
+      "description": "\ud83d\udda4 Some habits, some feelings, and some memories never fade\u2026 \ud83e\udd40\u2728\n\nAnime edits hit different when the music speaks what words cannot. \ud83c\udfa7\ud83d\udc94\n\n\ud83c\udfb5 Song: Adat\n\ud83c\udfa4 Artist: Zendria\n\u2702\ufe0f Edit: Shreyansh\n\nAll rights to the original music and anime footage belong to their respective copyright holders. Music and anime credits are provided for identification purposes.\n\n#Shorts #songs #zendria #vocal #vibe #emotinal\n\n#Shorts #Shorts #songs #zendria #vocal #vibe #emotinal #Adat #Zendria #AnimeEdit #AnimeShorts #AMV #Shorts",
+      "settings": "{\"__type\": \"youtube\", \"title\": \"Aadat-Atif-SnapYT.App \\u2014 Part 1\", \"type\": \"public\", \"selfDeclaredMadeForKids\": \"yes\", \"tags\": []}",
+      "state": "published",
+      "post_id": "cmvi3ekzl0016nn85voz3jvws",
+      "receipt": "[{\"postId\": \"cmvi3ekzl0016nn85voz3jvws\", \"integration\": \"cmvccd8w80001nn85nmji1d00\"}]",
+      "url": "https://www.youtube.com/watch?v=fbvxw2dqKLM",
+      "error": ""
+    },
+    {
+      "id": "a6fa67b970494093b0521f2f8999ea85",
+      "job_id": "afaf389cf50a460d89e613f364b40839",
+      "clip_id": "c131362f0f6043d79a219f62a4445ab6",
+      "channel": "cmvccd8w80001nn85nmji1d00",
+      "scheduled": "2026-10-21T13:08:00Z",
+      "title": "Aadat-Atif-SnapYT.App \u2014 Part 2",
+      "description": "\ud83d\udda4 Some habits, some feelings, and some memories never fade\u2026 \ud83e\udd40\u2728\n\nAnime edits hit different when the music speaks what words cannot. \ud83c\udfa7\ud83d\udc94\n\n\ud83c\udfb5 Song: Adat\n\ud83c\udfa4 Artist: Zendria\n\u2702\ufe0f Edit: Shreyansh\n\nAll rights to the original music and anime footage belong to their respective copyright holders. Music and anime credits are provided for identification purposes.\n\n#Shorts #songs #zendria #vocal #vibe #emotinal\n\n#Shorts #Shorts #songs #zendria #vocal #vibe #emotinal #Adat #Zendria #AnimeEdit #AnimeShorts #AMV #Shorts",
+      "settings": "{\"__type\": \"youtube\", \"title\": \"Aadat-Atif-SnapYT.App \\u2014 Part 2\", \"type\": \"public\", \"selfDeclaredMadeForKids\": \"yes\", \"tags\": []}",
+      "state": "published",
+      "post_id": "cmvi3er1q0017nn85uhbyspdw",
+      "receipt": "[{\"postId\": \"cmvi3er1q0017nn85uhbyspdw\", \"integration\": \"cmvccd8w80001nn85nmji1d00\"}]",
+      "url": "https://www.youtube.com/watch?v=5aYn6nGw9c0",
+      "error": ""
+    },
+    {
+      "id": "359ce1ddee934c82b23a39d9b01d68c1",
+      "job_id": "afaf389cf50a460d89e613f364b40839",
+      "clip_id": "1ec2f3c67ab641c198dd8cdb8ce58dd0",
+      "channel": "cmvccd8w80001nn85nmji1d00",
+      "scheduled": "2026-10-21T13:35:00Z",
+      "title": "Aadat-Atif-SnapYT.App \u2014 Part 3",
+      "description": "\ud83d\udda4 Some habits, some feelings, and some memories never fade\u2026 \ud83e\udd40\u2728\n\nAnime edits hit different when the music speaks what words cannot. \ud83c\udfa7\ud83d\udc94\n\n\ud83c\udfb5 Song: Adat\n\ud83c\udfa4 Artist: Zendria\n\u2702\ufe0f Edit: Shreyansh\n\nAll rights to the original music and anime footage belong to their respective copyright holders. Music and anime credits are provided for identification purposes.\n\n#Shorts #songs #zendria #vocal #vibe #emotinal\n\n#Shorts #Shorts #songs #zendria #vocal #vibe #emotinal #Adat #Zendria #AnimeEdit #AnimeShorts #AMV #Shorts",
+      "settings": "{\"__type\": \"youtube\", \"title\": \"Aadat-Atif-SnapYT.App \\u2014 Part 3\", \"type\": \"public\", \"selfDeclaredMadeForKids\": \"yes\", \"tags\": []}",
+      "state": "published",
+      "post_id": "cmvi3ex830018nn85latnfpq6",
+      "receipt": "[{\"postId\": \"cmvi3ex830018nn85latnfpq6\", \"integration\": \"cmvccd8w80001nn85nmji1d00\"}]",
+      "url": "https://www.youtube.com/watch?v=wffeBlzKoUE",
+      "error": ""
+    },
+    {
+      "id": "a5b54e837f934e8991f0beb1268193b5",
+      "job_id": "afaf389cf50a460d89e613f364b40839",
+      "clip_id": "83a16ab00dcc4adc9630873782fcc1f5",
+      "channel": "cmvccd8w80001nn85nmji1d00",
+      "scheduled": "2026-10-21T14:02:00Z",
+      "title": "Aadat-Atif-SnapYT.App \u2014 Part 4",
+      "description": "\ud83d\udda4 Some habits, some feelings, and some memories never fade\u2026 \ud83e\udd40\u2728\n\nAnime edits hit different when the music speaks what words cannot. \ud83c\udfa7\ud83d\udc94\n\n\ud83c\udfb5 Song: Adat\n\ud83c\udfa4 Artist: Zendria\n\u2702\ufe0f Edit: Shreyansh\n\nAll rights to the original music and anime footage belong to their respective copyright holders. Music and anime credits are provided for identification purposes.\n\n#Shorts #songs #zendria #vocal #vibe #emotinal\n\n#Shorts #Shorts #songs #zendria #vocal #vibe #emotinal #Adat #Zendria #AnimeEdit #AnimeShorts #AMV #Shorts",
+      "settings": "{\"__type\": \"youtube\", \"title\": \"Aadat-Atif-SnapYT.App \\u2014 Part 4\", \"type\": \"public\", \"selfDeclaredMadeForKids\": \"yes\", \"tags\": []}",
+      "state": "publish_failed",
+      "post_id": "cmvi3f3ep0019nn85gmqz878n",
+      "receipt": "[{\"postId\": \"cmvi3f3ep0019nn85gmqz878n\", \"integration\": \"cmvccd8w80001nn85nmji1d00\"}]",
+      "url": null,
+      "error": ""
+    }
+  ],
+  "events": [
+    {
+      "at": 1792589867.1869261,
+      "message": "Deleted local file for Aadat-Atif-SnapYT.App \u2014 Part 3 after successful publishing"
+    },
+    {
+      "at": 1792588152.022013,
+      "message": "Deleted local file for Aadat-Atif-SnapYT.App \u2014 Part 2 after successful publishing"
+    },
+    {
+      "at": 1792586504.376419,
+      "message": "Deleted local file for Aadat-Atif-SnapYT.App \u2014 Part 1 after successful publishing"
+    },
+    {
+      "at": 1792585996.857043,
+      "message": "Batch completed. Scheduled does not mean published."
+    },
+    {
+      "at": 1792585996.82242,
+      "message": "Scheduled part 4 to cmvccd8w80001nn85nmji1d00"
+    },
+    {
+      "at": 1792585988.8042722,
+      "message": "Scheduled part 3 to cmvccd8w80001nn85nmji1d00"
+    },
+    {
+      "at": 1792585980.801517,
+      "message": "Scheduled part 2 to cmvccd8w80001nn85nmji1d00"
+    },
+    {
+      "at": 1792585972.981518,
+      "message": "Scheduled part 1 to cmvccd8w80001nn85nmji1d00"
+    },
+    {
+      "at": 1792585960.7327948,
+      "message": "Clip 4 ready"
+    },
+    {
+      "at": 1792585940.81421,
+      "message": "Clip 3 ready"
+    },
+    {
+      "at": 1792585818.117406,
+      "message": "Clip 2 ready"
+    },
+    {
+      "at": 1792585748.5660312,
+      "message": "Clip 1 ready"
+    },
+    {
+      "at": 1792585671.6683571,
+      "message": "Batch saved. Waiting for Celery worker."
+    }
+  ]
+}

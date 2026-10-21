@@ -4,6 +4,7 @@ from celery import Celery
 from . import db, settings, media
 from .postiz import Postiz, PostizError, payload, receipt_id
 from .service import export_manifest, parse
+from .notifications import notify_slack
 import datetime as dt
 
 if sys.platform == 'win32':
@@ -40,7 +41,10 @@ celery=Celery('clipdesk',broker=settings.REDIS_URL)
 celery.conf.update(task_serializer='json',accept_content=['json'],task_acks_late=True,
     task_reject_on_worker_lost=True,worker_prefetch_multiplier=1,broker_connection_retry_on_startup=True,
     broker_transport_options={'visibility_timeout':86400},task_ignore_result=True,
-    beat_schedule={'dispatch-saved-jobs':{'task':'app.tasks.dispatch','schedule':10.0}})
+    beat_schedule={
+        'dispatch-saved-jobs': {'task': 'app.tasks.dispatch', 'schedule': 10.0},
+        'reconcile-all-batches': {'task': 'app.tasks.reconcile_all', 'schedule': 60.0}
+    })
 
 def has_lock(jid):
     db.job(jid)
@@ -70,6 +74,23 @@ def dispatch():
     # Database acts as a durable outbox. A failed broker submission leaves jobs queued.
     with db.connect() as c: ids=[r['id'] for r in c.execute("SELECT id FROM jobs WHERE state='queued'")]
     for jid in ids: run_job.delay(jid)
+
+@celery.task(name='app.tasks.reconcile_all')
+def reconcile_all():
+    """Periodically check active jobs to reconcile publication state and delete published clips."""
+    with db.connect() as c:
+        # Check jobs that have scheduled publications
+        jids = [
+            r['job_id'] for r in c.execute(
+                "SELECT DISTINCT job_id FROM publications WHERE state='scheduled' AND post_id IS NOT NULL AND post_id != ''"
+            )
+        ]
+    for jid in jids:
+        try:
+            if not has_lock(jid):
+                reconcile(jid)
+        except Exception:
+            pass
 
 @celery.task(name='app.tasks.run_job')
 def run_job(jid):
@@ -134,13 +155,29 @@ def run_job(jid):
                 db.event(jid,f'Scheduled part {clip["part"]} to {pub["channel"]}'); export_manifest(jid)
             db.update(jid,state='completed',progress=1,stage='Scheduled in Postiz' if pubs else 'Clips ready')
             db.event(jid,'Batch completed. Scheduled does not mean published.')
+            folder_name = config.get('folder', jid)
+            notify_slack(
+                f"📅 Batch Scheduled: {folder_name}",
+                f"All {len(pubs)} publication(s) for batch '{folder_name}' have been scheduled in Postiz!",
+                status="success"
+            )
         except media.Interrupted as e:
             action=str(e); db.update(jid,state='cancelled' if action=='cancel' else 'paused',stage='Cancelled pending work' if action=='cancel' else 'Paused')
             if action=='cancel':
                 with db.connect() as c: c.execute("UPDATE publications SET state='cancelled' WHERE job_id=? AND state='planned'",(jid,))
             db.event(jid,'Stopped local work; already scheduled posts remain in Postiz.')
+            notify_slack(
+                f"⏸️ Batch {action.capitalize()}: {config.get('folder', jid)}",
+                f"Batch '{config.get('folder', jid)}' was {action}ed.",
+                status="info"
+            )
         except Exception as e:
             db.update(jid,state='failed',error=str(e),stage='Needs attention'); db.event(jid,str(e))
+            notify_slack(
+                f"❌ Batch Failed: {config.get('folder', jid) if 'config' in locals() else jid}",
+                f"Processing error: {str(e)}",
+                status="error"
+            )
         finally:
             export_manifest(jid)
             _unlock_file(lock)
@@ -156,6 +193,44 @@ def reconcile(jid):
         # Unknown submissions are deliberately not inferred from text/time alone.
         if len(matches)!=1: continue
         r=matches[0]; state={'PUBLISHED':'published','ERROR':'publish_failed','QUEUE':'scheduled'}.get(r.get('state'))
-        if state:
+        if state and state != p['state']:
             with db.connect() as c: c.execute('UPDATE publications SET state=?,url=?,error=? WHERE id=?',(state,r.get('releaseURL'),str(r.get('error') or ''),p['id']))
+            
+            # When published to YouTube: delete the local file and send alert
+            if state == 'published':
+                release_url = r.get('releaseURL') or ''
+                title = p.get('title') or f"Part {p.get('part', '')}"
+                
+                # 1. Delete local file from disk
+                with db.connect() as c:
+                    clip_row = c.execute("SELECT path FROM clips WHERE id=?", (p['clip_id'],)).fetchone()
+                if clip_row and clip_row['path']:
+                    clip_file = Path(clip_row['path'])
+                    if clip_file.exists():
+                        try:
+                            clip_file.unlink(missing_ok=True)
+                            db.event(jid, f"Deleted local file for {title} after successful publishing")
+                            # If daily subfolder is now empty, clean it up
+                            parent_dir = clip_file.parent
+                            if parent_dir.exists() and parent_dir != Path(job['output']) and not any(parent_dir.iterdir()):
+                                parent_dir.rmdir()
+                        except Exception as e:
+                            db.event(jid, f"Could not remove local clip file: {e}")
+                
+                # 2. Send Slack notification
+                notify_slack(
+                    f"🎉 Published to YouTube: {title}",
+                    f"Clip '{title}' is now live on YouTube!\nURL: {release_url}\n(Local clip storage has been cleaned up)",
+                    url=release_url,
+                    status="success"
+                )
+            
+            elif state == 'publish_failed':
+                title = p.get('title') or f"Part {p.get('part', '')}"
+                err_msg = str(r.get('error') or 'Unknown publishing error from Postiz')
+                notify_slack(
+                    f"⚠️ YouTube Publishing Failed: {title}",
+                    f"Postiz failed to publish '{title}'.\nError: {err_msg}",
+                    status="error"
+                )
     export_manifest(jid)
