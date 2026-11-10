@@ -44,20 +44,40 @@ Write-Host "Building web frontend..."
 npm ci --prefix web
 npm run build --prefix web
 
-# Generate .env configuration if not present
-& $venvPy -c @"
-import os, secrets
+# Generate .env configuration if not present. Write a temporary Python file so
+# Windows PowerShell 5.1 does not reinterpret newlines in a native -c argument.
+if (-not (Test-Path ".env")) {
+    $envGenerator = Join-Path $env:TEMP "clipdesk-create-env.py"
+    @'
+import secrets
 from pathlib import Path
-p = Path('.env')
-if not p.exists():
-    example = Path('.env.example')
-    text = example.read_text() if example.exists() else ""
-    text = text.replace('APP_PASSWORD=', 'APP_PASSWORD=' + secrets.token_urlsafe(18))
-    text = text.replace('SESSION_SECRET=', 'SESSION_SECRET=' + secrets.token_hex(32))
-    home_dir = str(Path.home()).replace('\\', '/')
-    text = text.replace('/Users/shreyanshjain', home_dir)
-    p.write_text(text)
-print('Ready. Find your workspace password in .env (APP_PASSWORD).')
-print('Start Docker Desktop (or Redis), then run: .\\scripts\\start.ps1')
-"@
+
+p = Path(".env")
+example = Path(".env.example")
+text = example.read_text(encoding="utf-8") if example.exists() else ""
+text = text.replace("APP_PASSWORD=", "APP_PASSWORD=" + secrets.token_urlsafe(18), 1)
+text = text.replace("SESSION_SECRET=", "SESSION_SECRET=" + secrets.token_hex(32), 1)
+home_dir = str(Path.home()).replace("\\", "/")
+text = text.replace("/Users/shreyanshjain", home_dir)
+p.write_text(text, encoding="utf-8")
+'@ | Set-Content -Path $envGenerator -Encoding UTF8
+    try {
+        & $venvPy $envGenerator
+        if ($LASTEXITCODE -ne 0) { throw "Failed to generate .env." }
+    } finally {
+        Remove-Item $envGenerator -ErrorAction SilentlyContinue
+    }
+}
+
+# Replace the sample Mac media root when setup is run on another machine. Keep
+# a user-configured MEDIA_ROOT unchanged on later setup runs.
+if (Test-Path ".env") {
+    $mediaRoot = (& $venvPy -c "from pathlib import Path; print(str(Path.home()).replace('\\', '/'))").Trim()
+    $envContent = Get-Content ".env" -Raw
+    $envContent = $envContent.Replace("MEDIA_ROOT=/Users/shreyanshjain", "MEDIA_ROOT=$mediaRoot")
+    Set-Content -Path ".env" -Value $envContent -NoNewline -Encoding UTF8
+}
+
+Write-Host "Ready. Find your workspace password in .env (APP_PASSWORD)."
+Write-Host "Start Docker Desktop (or Redis), then run: .\scripts\start.ps1"
 

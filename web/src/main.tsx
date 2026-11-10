@@ -8,7 +8,7 @@ async function api(path:string,body?:unknown,method?:string){const m=method??(bo
 const tabPaths:Record<string,string>={new:'/create',jobs:'/batches',settings:'/connections'};
 function currentTab(){return Object.keys(tabPaths).find(key=>tabPaths[key]===window.location.pathname)||'new'}
 function App(){
- const [auth,setAuth]=useState(false),[password,setPassword]=useState(''),[error,setError]=useState(''),[status,setStatus]=useState<any>({}),[channels,setChannels]=useState<Channel[]>([]),[jobs,setJobs]=useState<any[]>([]),[selected,setSelected]=useState<any>(null),[tab,updateTab]=useState(currentTab),[busy,setBusy]=useState(false),[preview,setPreview]=useState<any>(null),[picker,setPicker]=useState<'source'|'destination'|null>(null),[listing,setListing]=useState<any>(null),[confirmDelete,setConfirmDelete]=useState<any>(null),[batchSubTab,setBatchSubTab]=useState<'schedule'|'clips'|'events'>('schedule');
+ const [auth,setAuth]=useState(false),[password,setPassword]=useState(''),[error,setError]=useState(''),[status,setStatus]=useState<any>({}),[channels,setChannels]=useState<Channel[]>([]),[jobs,setJobs]=useState<any[]>([]),[selected,setSelected]=useState<any>(null),[tab,updateTab]=useState(currentTab),[busy,setBusy]=useState(false),[preview,setPreview]=useState<any>(null),[picker,setPicker]=useState<'source'|'destination'|null>(null),[listing,setListing]=useState<any>(null),[confirmDelete,setConfirmDelete]=useState<any>(null),[batchSubTab,setBatchSubTab]=useState<'schedule'|'clips'|'events'>('schedule'),[selectedFailedPubs,setSelectedFailedPubs]=useState<string[]>([]),[rescheduleModal,setRescheduleModal]=useState<boolean>(false),[rescheduleForm,setRescheduleForm]=useState<any>({start_date:'',clips_per_day:5,window_start:'08:00',window_end:'20:00',timezone:'Asia/Kolkata',ids:[]});
  function setTab(next:string){if(window.location.pathname!==tabPaths[next])window.history.pushState(null,'',tabPaths[next]);updateTab(next)}
  useEffect(()=>{if(window.location.pathname==='/')window.history.replaceState(null,'',tabPaths.new);const onPop=()=>updateTab(currentTab());window.addEventListener('popstate',onPop);return()=>window.removeEventListener('popstate',onPop)},[]);
  const [form,setForm]=useState<Form>({source:'',destination:'',folder:'my-first-batch',clip_seconds:59,framing:'crop',start_date:new Date(Date.now()+86400000).toISOString().slice(0,10),timezone:'Asia/Kolkata',channels:[],clips_per_day:5,window_start:'08:00',window_end:'20:00',title:'{video_name} — Part {part}',description:'',hashtags:'#Shorts',visibility:'private',made_for_kids:'no',schedule:false});
@@ -19,11 +19,31 @@ function App(){
  useEffect(()=>{if(!selected)return;const timer=setInterval(()=>{api('/jobs/'+selected.id).then(setSelected).catch(()=>{})},2500);return()=>clearInterval(timer)},[selected?.id]);
  async function act(fn:()=>Promise<void>){setError('');setBusy(true);try{await fn()}catch(e:any){setError(e.message)}finally{setBusy(false)}}
  async function browse(kind:'source'|'destination',path?:string){setPicker(kind);await act(async()=>setListing(await api('/files'+(path?'?path='+encodeURIComponent(path):''))))}
+ function openRescheduleModal(targetIds?:string[]){
+  const eligible=selected?.publications?.filter((p:any)=>p.state!=='published')||[];
+  const ids=targetIds&&targetIds.length>0?targetIds:(selectedFailedPubs.length>0?selectedFailedPubs:eligible.map((p:any)=>p.id));
+  if(!ids.length)return;
+  const cfg=selected?.config||{};
+  const now=new Date();
+  now.setMinutes(now.getMinutes()+5);
+  const pad=(n:number)=>String(n).padStart(2,'0');
+  const defaultStart=`${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  setRescheduleForm({
+   start_date:new Date().toISOString().slice(0,10),
+   clips_per_day:cfg.clips_per_day||selected?.clips?.length||20,
+   window_start:defaultStart,
+   window_end:'23:59',
+   timezone:cfg.timezone||'Asia/Kolkata',
+   ids
+  });
+  setRescheduleModal(true);
+ }
  async function toggleJob(id:string){
   if(selected?.id===id){
    setSelected(null);
+   setSelectedFailedPubs([]);
   }else{
-   await act(async()=>{setSelected(await api('/jobs/'+id));setTab('jobs');setBatchSubTab('schedule')});
+   await act(async()=>{setSelected(await api('/jobs/'+id));setTab('jobs');setBatchSubTab('schedule');setSelectedFailedPubs([])});
   }
  }
  function body(){return form;}
@@ -48,10 +68,19 @@ function App(){
     {isExpanded&&selected&&<section className="card detail accordion-detail">
      <div className="card-title"><div><h2>{selected.config.folder}</h2><p>{selected.stage} · {Math.round(selected.progress*100)}%</p></div><span className="badge">{selected.mode}</span></div>
      {selected.error&&<div className="error">{selected.error}</div>}
-     <div className="actions"><button className="secondary" disabled={busy||!['running','queued'].includes(selected.state)} onClick={()=>act(async()=>{await api(`/jobs/${selected.id}/pause`,{});setSelected(await api('/jobs/'+selected.id))})}><Pause size={15}/> Pause</button><button className="secondary" disabled={busy||!['paused','failed','running','queued'].includes(selected.state)} onClick={()=>act(async()=>{await api(`/jobs/${selected.id}/resume`,{});setSelected(await api('/jobs/'+selected.id))})}><Play size={15}/> Resume / retry</button><button className="secondary" disabled={busy} onClick={()=>act(async()=>setSelected(await api(`/jobs/${selected.id}/refresh`,{})))}><RefreshCw size={15}/> Refresh Postiz status</button><button className="secondary" disabled={busy} onClick={()=>{if(confirm('Stop pending local work? Posts already scheduled in Postiz will remain scheduled.'))act(async()=>{await api(`/jobs/${selected.id}/cancel`,{});setSelected(await api('/jobs/'+selected.id))})}}><X size={15}/> Cancel pending</button><button className="danger" disabled={busy} onClick={()=>setConfirmDelete(selected)}><Trash2 size={15}/> Delete batch</button></div>
+     <div className="actions"><button className="secondary" disabled={busy||!['running','queued'].includes(selected.state)} onClick={()=>act(async()=>{await api(`/jobs/${selected.id}/pause`,{});setSelected(await api('/jobs/'+selected.id))})}><Pause size={15}/> Pause</button><button className="secondary" disabled={busy||!['paused','failed','running','queued','cancelled'].includes(selected.state)} onClick={()=>act(async()=>{await api(`/jobs/${selected.id}/resume`,{});setSelected(await api('/jobs/'+selected.id))})}><Play size={15}/> Resume / retry</button><button className="secondary" disabled={busy} onClick={()=>act(async()=>setSelected(await api(`/jobs/${selected.id}/refresh`,{})))}><RefreshCw size={15}/> Refresh Postiz status</button>{selected.publications?.some((p:any)=>p.state!=='published')&&<button className="primary" disabled={busy} onClick={()=>openRescheduleModal()} title="Reschedule unposted or failed clips"><CalendarDays size={15}/> 🔄 Reschedule ({selected.publications.filter((p:any)=>p.state!=='published').length})</button>}<button className="secondary" disabled={busy} onClick={()=>{if(confirm('Stop pending local work? Posts already scheduled in Postiz will remain scheduled.'))act(async()=>{await api(`/jobs/${selected.id}/cancel`,{});setSelected(await api('/jobs/'+selected.id))})}}><X size={15}/> Cancel pending</button><button className="danger" disabled={busy} onClick={()=>setConfirmDelete(selected)}><Trash2 size={15}/> Delete batch</button></div>
      <p className="hint">Pause and cancel do not remove posts already scheduled in Postiz. Manage those in Postiz.</p>
      <div className="segmented" style={{margin:'20px 0 12px'}}><button className={batchSubTab==='schedule'?'chosen':''} onClick={()=>setBatchSubTab('schedule')}>Schedule & Uploads ({selected.publications.length})</button><button className={batchSubTab==='clips'?'chosen':''} onClick={()=>setBatchSubTab('clips')}>Local Clips ({selected.clips.length})</button><button className={batchSubTab==='events'?'chosen':''} onClick={()=>setBatchSubTab('events')}>Activity ({selected.events.length})</button></div>
      {batchSubTab==='schedule'&&(()=>{
+      const eligibleList=selected.publications.filter((p:any)=>p.state!=='published');
+      const allEligibleSelected=eligibleList.length>0&&eligibleList.every((p:any)=>selectedFailedPubs.includes(p.id));
+      const toggleAllEligible=()=>{
+       if(allEligibleSelected){
+        setSelectedFailedPubs(prev=>prev.filter(id=>!eligibleList.some((p:any)=>p.id===id)));
+       }else{
+        setSelectedFailedPubs(Array.from(new Set([...selectedFailedPubs,...eligibleList.map((p:any)=>p.id)])));
+       }
+      };
       const daysMap=new Map<string,any[]>();
       selected.publications.forEach((p:any)=>{
        const d=new Date(p.scheduled).toLocaleDateString(undefined,{weekday:'short',year:'numeric',month:'short',day:'numeric'});
@@ -60,29 +89,52 @@ function App(){
       });
       const dayEntries=Array.from(daysMap.entries());
       return <div className="schedule-timeline">
+       {eligibleList.length>0&&<div className="selection-bar">
+        <span><strong>{selectedFailedPubs.length}</strong> of <strong>{eligibleList.length}</strong> unposted clip(s) selected</span>
+        <div className="selection-actions">
+         <button className="secondary" onClick={toggleAllEligible}>{allEligibleSelected?'Deselect all':'Select all ('+eligibleList.length+')'}</button>
+         <button className="primary" disabled={busy||(selectedFailedPubs.length===0&&eligibleList.length===0)} onClick={()=>openRescheduleModal(selectedFailedPubs.length>0?selectedFailedPubs:eligibleList.map((p:any)=>p.id))}><CalendarDays size={15}/> 🔄 Reschedule {selectedFailedPubs.length>0?`selected (${selectedFailedPubs.length})`:`all (${eligibleList.length})`}</button>
+        </div>
+       </div>}
        {!dayEntries.length&&<p className="hint">No posts scheduled for this batch.</p>}
        {dayEntries.map(([dayDate,pubs],dIdx)=>{
         const pubCount=pubs.filter((p:any)=>p.state==='published').length;
         const schedCount=pubs.filter((p:any)=>p.state==='scheduled').length;
+        const failCount=pubs.filter((p:any)=>p.state==='publish_failed').length;
         return <div className="day-group-card" key={dIdx}>
          <div className="day-header">
-          <div><strong>Day {dIdx+1} — {dayDate}</strong><small>{pubs.length} clips scheduled · {pubCount} published · {schedCount} in queue</small></div>
-          <span className={'pill '+(pubCount===pubs.length?'green':schedCount>0?'amber':'')}>{pubCount===pubs.length?'Completed':schedCount>0?'Scheduled':'Pending'}</span>
+          <div><strong>Day {dIdx+1} — {dayDate}</strong><small>{pubs.length} clips scheduled · {pubCount} published · {schedCount} in queue{failCount>0?` · ${failCount} failed`:''}</small></div>
+          <span className={'pill '+(pubCount===pubs.length?'green':schedCount>0?'amber':failCount>0?'red':'')}>{pubCount===pubs.length?'Completed':schedCount>0?'Scheduled':failCount>0?'Has Failed':'Pending'}</span>
          </div>
-         <div className="table-wrap"><table><thead><tr><th>Clip</th><th>Channel</th><th>Time</th><th>Status</th></tr></thead><tbody>
-          {pubs.map((p:any)=><tr key={p.id}>
-           <td>{p.title}</td>
-           <td>{channels.find(c=>c.id===p.channel)?.name||p.channel}</td>
-           <td>{new Date(p.scheduled).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</td>
-           <td>{p.url?<a href={p.url} target="_blank" rel="noreferrer">{p.state}</a>:<span className={'pill '+(p.state==='published'?'green':p.state==='scheduled'?'amber':'')}>{p.state}</span>}{['unknown','submitting'].includes(p.state)&&<button className="link" onClick={()=>{const id=prompt('Inspect Postiz first. Enter the existing Postiz post ID to link (never a YouTube video ID).');if(id)act(async()=>{await api(`/publications/${p.id}/resolve`,{post_id:id});setSelected(await api('/jobs/'+selected.id))})}}>Link existing post</button>}</td>
-          </tr>)}
+         <div className="table-wrap"><table><thead><tr><th style={{width:36}}><input type="checkbox" title="Select all unposted in this batch" checked={allEligibleSelected} onChange={toggleAllEligible} disabled={!eligibleList.length}/></th><th>Clip</th><th>Channel</th><th>Time</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+          {pubs.map((p:any)=>{
+           const isEligible=p.state!=='published';
+           const isChecked=selectedFailedPubs.includes(p.id);
+           return <tr key={p.id} className={isChecked?'row-selected':''}>
+            <td style={{width:36}}>{isEligible&&<input type="checkbox" checked={isChecked} onChange={e=>setSelectedFailedPubs(prev=>e.target.checked?[...prev,p.id]:prev.filter(x=>x!==p.id))}/>}</td>
+            <td>{p.title}</td>
+            <td>{channels.find(c=>c.id===p.channel)?.name||p.channel}</td>
+            <td>{new Date(p.scheduled).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</td>
+            <td>{p.url?<a href={p.url} target="_blank" rel="noreferrer">{p.state}</a>:<span className={'pill '+(p.state==='published'?'green':p.state==='scheduled'?'amber':p.state==='publish_failed'?'red':'')}>{p.state}</span>}</td>
+            <td>
+             {isEligible&&<button className="link" onClick={()=>openRescheduleModal([p.id])}>🔄 Reschedule</button>}
+             {['unknown','submitting'].includes(p.state)&&<button className="link" onClick={()=>{const id=prompt('Inspect Postiz first. Enter the existing Postiz post ID to link (never a YouTube video ID).');if(id)act(async()=>{await api(`/publications/${p.id}/resolve`,{post_id:id});setSelected(await api('/jobs/'+selected.id))})}}>Link existing post</button>}
+            </td>
+           </tr>;
+          })}
          </tbody></table></div>
         </div>;
        })}
       </div>;
      })()}
      {batchSubTab==='clips'&&<div className="clips">{selected.clips.map((c:any)=><a key={c.id} className={'clip '+(c.state==='ready'?'ready':'')} href={c.state==='ready'?'/api/clips/'+c.id:undefined} target="_blank" rel="noreferrer"><Film size={17}/> Part {c.part}<small>{c.state}</small></a>)}</div>}
-     {batchSubTab==='events'&&<div>{selected.events.map((e:any,i:number)=><div className="event" key={i}><span>{new Date(e.at*1000).toLocaleTimeString()}</span>{e.message}</div>)}</div>}
+     {batchSubTab==='events'&&<div className="events-list">
+      {!selected.events?.length&&<p className="hint">No activity logged yet.</p>}
+      {selected.events.map((e:any,i:number)=><div className="event-item" key={i}>
+       <span className="event-time">{new Date(e.at*1000).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'})}</span>
+       <span className="event-msg">{e.message}</span>
+      </div>)}
+     </div>}
     </section>}
    </div>;
   })}</div></>}
@@ -90,6 +142,43 @@ function App(){
  </section><footer>clipdesk <span>Local processing. Thoughtful publishing.</span><span>v0.2 · Local MVP</span></footer></div>
  {confirmDelete&&<div className="modal-bg"><section className="modal"><div className="card-title"><div><h2>Delete batch?</h2><p><strong>{confirmDelete.config?.folder}</strong></p></div><button className="icon" onClick={()=>setConfirmDelete(null)}><X/></button></div><div className="delete-warning"><Trash2 size={28}/><p>This will permanently:</p><ul><li>Cancel and delete all queued Postiz posts for this batch</li><li>Delete all local clip files from disk</li><li>Remove this batch record entirely — no undo</li></ul></div><div className="modal-actions"><button className="danger full" disabled={busy} onClick={()=>act(async()=>{await api(`/jobs/${confirmDelete.id}`,undefined,'DELETE');setConfirmDelete(null);setSelected(null);await load()})}>Yes, delete everything</button><button className="secondary full" onClick={()=>setConfirmDelete(null)}>Cancel</button></div></section></div>}
  {picker&&<div className="modal-bg"><section className="modal"><div className="card-title"><div><h2>{picker==='source'?'Choose a video':'Choose output directory'}</h2><p>{listing?.path||'Loading…'}</p></div><button className="icon" onClick={()=>setPicker(null)}><X/></button></div>{listing?.parent&&<button className="file-row" onClick={()=>browse(picker,listing.parent)}>↑ Parent directory</button>}<div className="file-list">{listing?.entries?.filter((e:any)=>picker==='source'||e.directory).map((e:any)=><button className="file-row" key={e.path} onClick={()=>{if(e.directory)browse(picker,e.path);else{update('source',e.path);setPicker(null)}}}>{e.directory?<FolderOpen size={18}/>:<Film size={18}/>} {e.name} {e.directory&&<ChevronRight size={15}/>}</button>)}</div>{picker==='destination'&&<button className="primary full" onClick={()=>{update('destination',listing.path);setPicker(null)}}>Use this directory <Check size={17}/></button>}</section></div>}
+ {rescheduleModal&&<div className="modal-bg"><section className="modal">
+  <div className="card-title"><div><h2>🔄 Reschedule Failed Clips</h2><p>{rescheduleForm.ids.length} clip(s) selected for <strong>{selected?.config?.folder}</strong></p></div><button className="icon" onClick={()=>setRescheduleModal(false)}><X/></button></div>
+  <div className="two">
+   <label>Start date<input type="date" value={rescheduleForm.start_date} onChange={e=>setRescheduleForm((f:any)=>({...f,start_date:e.target.value}))}/></label>
+   <label>Clips per day<input type="number" min="1" max="24" value={rescheduleForm.clips_per_day} onChange={e=>setRescheduleForm((f:any)=>({...f,clips_per_day:Math.max(1,Number(e.target.value))}))}/></label>
+  </div>
+  <div className="two">
+   <label>Posting window start (HH:MM)<input type="time" value={rescheduleForm.window_start} onChange={e=>setRescheduleForm((f:any)=>({...f,window_start:e.target.value}))}/></label>
+   <label>Posting window end (HH:MM)<input type="time" value={rescheduleForm.window_end} onChange={e=>setRescheduleForm((f:any)=>({...f,window_end:e.target.value}))}/></label>
+  </div>
+  <label>Timezone<input value={rescheduleForm.timezone} onChange={e=>setRescheduleForm((f:any)=>({...f,timezone:e.target.value}))}/></label>
+  <div className="plan-result" style={{margin:'18px 0'}}>
+   <CalendarDays size={18}/>
+   <div>
+    <strong>Rescheduling {rescheduleForm.ids.length} clip(s) to future slots</strong>
+    <small>Clips are already encoded on disk and will not be re-clipped.</small>
+    <small>New posting slots will be generated starting from {rescheduleForm.start_date} ({rescheduleForm.timezone}).</small>
+   </div>
+  </div>
+  <div className="modal-actions">
+   <button className="primary full" disabled={busy} onClick={()=>act(async()=>{
+    const res=await api(`/jobs/${selected.id}/reschedule`,{
+     publication_ids:rescheduleForm.ids,
+     start_date:rescheduleForm.start_date,
+     clips_per_day:rescheduleForm.clips_per_day,
+     window_start:rescheduleForm.window_start,
+     window_end:rescheduleForm.window_end,
+     timezone:rescheduleForm.timezone
+    });
+    setSelected(res);
+    setSelectedFailedPubs([]);
+    setRescheduleModal(false);
+    await load();
+   })}>{busy?'Rescheduling…':'🚀 Confirm & Start Uploading'} <ArrowRight size={16}/></button>
+   <button className="secondary full" onClick={()=>setRescheduleModal(false)}>Cancel</button>
+  </div>
+ </section></div>}
  </div>
 }
 createRoot(document.getElementById('root')!).render(<App/>);

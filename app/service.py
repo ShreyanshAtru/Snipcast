@@ -17,6 +17,16 @@ def parse(value):
     return dt.datetime.fromisoformat(value.replace('Z', '+00:00')).astimezone(UTC)
 
 
+def format_time_tz(iso_str, tz_name='Asia/Kolkata'):
+    if not iso_str:
+        return ''
+    try:
+        dt_val = dt.datetime.fromisoformat(iso_str.replace('Z', '+00:00')).astimezone(ZoneInfo(tz_name))
+        return dt_val.strftime('%d %b, %I:%M %p')
+    except Exception:
+        return iso_str
+
+
 def compute_daily_times(clips_per_day: int, window_start: str, window_end: str) -> list:
     """Return clips_per_day evenly-spaced HH:MM strings within the posting window."""
     try:
@@ -253,3 +263,247 @@ def export_manifest(jid):
     temp = output / 'manifest.tmp'
     temp.write_text(json.dumps(data, indent=2))
     temp.replace(target)
+
+
+def reschedule_publications(
+    jid: str,
+    publication_ids: list[str] | None = None,
+    start_date: str | None = None,
+    clips_per_day: int | None = None,
+    window_start: str | None = None,
+    window_end: str | None = None,
+    timezone: str | None = None,
+):
+    job = db.details(jid)
+    if job['mode'] != settings.MODE:
+        raise ValueError('Cannot reschedule a batch from another mode')
+
+    from .tasks import has_lock, run_job
+    if has_lock(jid):
+        raise ValueError('Worker is currently active on this batch; wait for it to stop before rescheduling')
+
+    cfg = job['config']
+    tz_name = timezone or cfg.get('timezone', 'Asia/Kolkata')
+    try:
+        tz = ZoneInfo(tz_name)
+    except Exception:
+        raise ValueError(f'Invalid timezone: {tz_name}')
+
+    cpd = int(clips_per_day or cfg.get('clips_per_day', 5))
+    if cpd < 1:
+        cpd = 1
+    w_start = window_start or cfg.get('window_start', '08:00')
+    w_end = window_end or cfg.get('window_end', '20:00')
+    daily_times = compute_daily_times(cpd, w_start, w_end)
+
+    now_tz = dt.datetime.now(tz)
+    now_utc = dt.datetime.now(UTC)
+    if not start_date:
+        start_date = now_tz.date().isoformat()
+    else:
+        try:
+            dt.date.fromisoformat(start_date)
+        except ValueError:
+            raise ValueError(f'Invalid start_date format: {start_date}')
+
+    pubs = job['publications']
+    clip_part_map = {c['id']: c['part'] for c in job['clips']}
+    for p in pubs:
+        p['part'] = clip_part_map.get(p.get('clip_id'), 0)
+
+    if publication_ids:
+        pub_set = set(publication_ids)
+        target_pubs = [p for p in pubs if p['id'] in pub_set and p['state'] != 'published']
+    else:
+        target_pubs = [p for p in pubs if p['state'] != 'published']
+
+    if not target_pubs:
+        raise ValueError('No eligible un-published clips found to reschedule')
+
+    target_pub_ids = {p['id'] for p in target_pubs}
+    target_post_ids = {p.get('post_id') for p in target_pubs if p.get('post_id')}
+    occupied = set()
+    now_buffer = now_utc + dt.timedelta(minutes=5)
+    start_utc = dt.datetime.combine(dt.date.fromisoformat(start_date), dt.time(), tz).astimezone(UTC)
+    end_utc = max(start_utc, now_buffer) + dt.timedelta(days=max(30, len(target_pubs) * 2 + 7))
+
+    if settings.MODE != 'demo':
+        try:
+            client = Postiz()
+            # Clean up old Postiz posts for target publications first so they do not conflict
+            for p in target_pubs:
+                if p.get('post_id'):
+                    try:
+                        client.delete(p['post_id'])
+                    except Exception:
+                        pass
+
+            active_channels = client.channels()
+            active_ids = {c['id'] for c in active_channels}
+            for p in target_pubs:
+                if p['channel'] not in active_ids and len(active_channels) == 1:
+                    p['channel'] = active_channels[0]['id']
+
+            remote = client.posts(iso(start_utc), iso(end_utc))
+            for r in remote:
+                if r.get('id') in target_post_ids:
+                    continue
+                if r.get('state') in ('QUEUE', 'PUBLISHED') and r.get('publishDate'):
+                    occupied.add((r.get('integration', {}).get('id'), iso(parse(r['publishDate']))))
+        except Exception:
+            pass
+
+    with db.connect() as c:
+        for r in c.execute("SELECT id, channel, scheduled FROM publications WHERE state NOT IN ('cancelled', 'publish_failed')"):
+            if r['id'] not in target_pub_ids:
+                occupied.add((r['channel'], r['scheduled']))
+
+    by_channel = {}
+    for p in target_pubs:
+        by_channel.setdefault(p['channel'], []).append(p)
+
+    assigned_slots = {}
+
+    for channel_id, ch_pubs in by_channel.items():
+        ch_pubs.sort(key=lambda x: x.get('part', 0))
+        groups = [ch_pubs[i:i + cpd] for i in range(0, len(ch_pubs), cpd)]
+        day = dt.date.fromisoformat(start_date)
+        group_idx = 0
+        day_count = 0
+
+        while group_idx < len(groups) and day_count < 3660:
+            group = groups[group_idx]
+
+            # Determine daily times for this day
+            if day == now_tz.date():
+                earliest_today = (now_tz + dt.timedelta(minutes=6)).time()
+                try:
+                    ws_time = dt.time.fromisoformat(w_start)
+                except Exception:
+                    ws_time = earliest_today
+                try:
+                    we_time = dt.time.fromisoformat(w_end)
+                except Exception:
+                    we_time = dt.time(23, 59)
+
+                # If window_end is earlier than window_start (e.g. 02:00 vs 01:05), or in the past:
+                if we_time <= ws_time or we_time <= earliest_today:
+                    we_time = dt.time(23, 59)
+
+                eff_start = max(ws_time, earliest_today)
+                if eff_start >= we_time:
+                    day += dt.timedelta(days=1)
+                    day_count += 1
+                    continue
+
+                day_times = compute_daily_times(
+                    cpd,
+                    eff_start.strftime('%H:%M'),
+                    we_time.strftime('%H:%M')
+                )
+            else:
+                try:
+                    ws_time = dt.time.fromisoformat(w_start)
+                    we_time = dt.time.fromisoformat(w_end)
+                    if we_time <= ws_time:
+                        we_time = dt.time(23, 59)
+                    day_times = compute_daily_times(
+                        cpd,
+                        ws_time.strftime('%H:%M'),
+                        we_time.strftime('%H:%M')
+                    )
+                except Exception:
+                    day_times = daily_times
+
+            needed_times = day_times[:len(group)]
+            slots = []
+            valid_day = True
+
+            for t_str in needed_times:
+                t = dt.time.fromisoformat(t_str)
+                value = dt.datetime.combine(day, t, tz)
+                if value.utcoffset() != value.replace(fold=1).utcoffset():
+                    valid_day = False
+                    break
+                if value.astimezone(UTC).astimezone(tz).replace(tzinfo=None) != value.replace(tzinfo=None):
+                    valid_day = False
+                    break
+                slot = iso(value)
+                if parse(slot) <= now_buffer:
+                    valid_day = False
+                    break
+                if parse(slot) > end_utc:
+                    raise ValueError('No available slot in checked date range')
+                if (channel_id, slot) in occupied:
+                    valid_day = False
+                    break
+                slots.append(slot)
+
+            if valid_day and len(slots) == len(needed_times):
+                for p, slot in zip(group, slots):
+                    occupied.add((channel_id, slot))
+                    assigned_slots[p['id']] = slot
+                group_idx += 1
+
+            day += dt.timedelta(days=1)
+            day_count += 1
+
+        if group_idx < len(groups):
+            raise ValueError('Could not find enough available slots in the given date range')
+
+    with db.connect() as c:
+        c.execute('BEGIN IMMEDIATE')
+        # Temporarily mark target publications as cancelled so UNIQUE index reserved_slots does not collide with their previous slots
+        placeholders = ','.join('?' for _ in target_pub_ids)
+        c.execute(f"UPDATE publications SET state='cancelled' WHERE id IN ({placeholders})", list(target_pub_ids))
+        for pub_id, new_slot in assigned_slots.items():
+            pub_obj = next((p for p in target_pubs if p['id'] == pub_id), None)
+            new_channel = pub_obj['channel'] if pub_obj else None
+            if new_channel:
+                c.execute(
+                    "UPDATE publications SET state='planned', scheduled=?, channel=?, post_id=NULL, receipt=NULL, url=NULL, error='' WHERE id=?",
+                    (new_slot, new_channel, pub_id),
+                )
+            else:
+                c.execute(
+                    "UPDATE publications SET state='planned', scheduled=?, post_id=NULL, receipt=NULL, url=NULL, error='' WHERE id=?",
+                    (new_slot, pub_id),
+                )
+            clip_row = c.execute("SELECT clip_id FROM publications WHERE id=?", (pub_id,)).fetchone()
+            if clip_row and clip_row['clip_id']:
+                c.execute("UPDATE clips SET media=NULL WHERE id=?", (clip_row['clip_id'],))
+
+        c.execute(
+            "UPDATE jobs SET state='queued', requested='', error='', stage='Waiting for worker', progress=0.7, updated=? WHERE id=?",
+            (time.time(), jid),
+        )
+
+    if settings.MODE != 'demo':
+        try:
+            client = Postiz()
+            for p in target_pubs:
+                if p.get('post_id'):
+                    try:
+                        client.delete(p['post_id'])
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+    for p in target_pubs:
+        slot = assigned_slots.get(p['id'])
+        if slot:
+            part_num = p.get('part', '?')
+            time_str = format_time_tz(slot, tz_name)
+            db.event(jid, f"🔄 Part {part_num}: Rescheduled ➔ {time_str}")
+
+    db.event(jid, f"🚀 Rescheduled {len(assigned_slots)} clip(s) starting from {start_date} ({tz_name})")
+    export_manifest(jid)
+
+    try:
+        run_job.apply_async(args=[jid], retry=False)
+    except Exception:
+        db.event(jid, "⚠️ Celery broker unavailable; batch will dispatch when worker connects")
+
+    return db.details(jid)
+

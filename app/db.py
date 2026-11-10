@@ -54,6 +54,6 @@ def details(jid):
     with connect() as c:
         data['clips']=[dict(r) for r in c.execute('SELECT * FROM clips WHERE job_id=? ORDER BY part',(jid,))]
         data['publications']=[dict(r) for r in c.execute('SELECT * FROM publications WHERE job_id=? ORDER BY scheduled,channel',(jid,))]
-        data['events']=[dict(r) for r in c.execute('SELECT at,message FROM events WHERE job_id=? ORDER BY id DESC LIMIT 30',(jid,))]
+        data['events']=[dict(r) for r in c.execute('SELECT at,message FROM events WHERE job_id=? ORDER BY id DESC LIMIT 100',(jid,))]
     return data
 init()
