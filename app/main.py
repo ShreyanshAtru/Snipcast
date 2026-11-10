@@ -216,6 +216,7 @@ def pause(jid: str):
     db.update(jid, requested="pause")
     if r["state"] == "queued":
         db.update(jid, state="paused", stage="Paused")
+    db.event(jid, "⏸️ Batch paused by user")
     return {"ok": True}
 
 
@@ -224,11 +225,12 @@ def resume(jid: str):
     r = db.details(jid)
     if has_lock(jid):
         raise ValueError("Worker is still active; wait for it to stop")
-    if r["state"] not in ("paused", "failed", "queued", "running"):
+    if r["state"] not in ("paused", "failed", "queued", "running", "cancelled"):
         raise ValueError("Batch cannot be resumed")
     if any(p["state"] in ("unknown", "submitting") for p in r["publications"]):
         raise ValueError("Reconcile uncertain submissions before resume")
     db.update(jid, state="queued", requested="", error="", stage="Waiting for worker")
+    db.event(jid, "▶️ Batch resumed by user")
     try:
         run_job.apply_async(args=[jid], retry=False)
     except Exception:
@@ -247,10 +249,33 @@ def cancel(jid: str):
                 "UPDATE publications SET state='cancelled' WHERE job_id=? AND state='planned'",
                 (jid,),
             )
+    db.event(jid, "🛑 Pending work cancelled by user")
     return {
         "ok": True,
         "note": "Already scheduled Postiz posts are unchanged; manage them in Postiz.",
     }
+
+
+class RescheduleRequest(BaseModel):
+    publication_ids: list[str] = []
+    start_date: str | None = None
+    clips_per_day: int | None = None
+    window_start: str | None = None
+    window_end: str | None = None
+    timezone: str | None = None
+
+
+@app.post("/api/jobs/{jid}/reschedule")
+def reschedule(jid: str, body: RescheduleRequest = RescheduleRequest()):
+    return service.reschedule_publications(
+        jid=jid,
+        publication_ids=body.publication_ids or None,
+        start_date=body.start_date,
+        clips_per_day=body.clips_per_day,
+        window_start=body.window_start,
+        window_end=body.window_end,
+        timezone=body.timezone,
+    )
 
 
 @app.post("/api/jobs/{jid}/refresh")

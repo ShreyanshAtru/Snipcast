@@ -9,5 +9,16 @@
 .job-accordion-item.open{border:1px solid #c9d8c4;border-radius:12px;background:#fff;padding:12px;margin-bottom:12px}
 .job-accordion-item.open .job-card{border:none;box-shadow:none;padding:10px 12px;margin-bottom:8px}
 .accordion-detail{margin-bottom:0 !important;border:none !important;box-shadow:none !important;padding:12px 14px 18px !important;border-top:1px solid #edf1e7 !important;border-radius:0 !important}
+.red{background:#fee8e7;color:#a83228}
+.selection-bar{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:#f3f7ee;border:1px solid #dce8d3;border-radius:8px;margin-bottom:14px;font-size:12px;flex-wrap:wrap;gap:10px}
+.selection-actions{display:flex;align-items:center;gap:8px}
+.selection-actions .primary{padding:8px 14px;font-size:11px}
+.selection-actions .secondary{padding:8px 12px;font-size:11px}
+.row-selected{background:#f4f8f0}
+.events-list{display:flex;flex-direction:column;gap:6px;max-height:480px;overflow-y:auto;padding-right:6px}
+.event-item{display:flex;align-items:flex-start;gap:14px;padding:9px 12px;border-radius:6px;background:#fcfdfa;border:1px solid #edf1e7;font-size:12px;line-height:1.5}
+.event-item:hover{background:#f5f8f1}
+.event-time{color:#8a9686;font-size:11px;font-variant-numeric:tabular-nums;flex-shrink:0;width:70px}
+.event-msg{color:#2a3d32;word-break:break-word}
 
 
